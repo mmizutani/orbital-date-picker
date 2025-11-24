@@ -10,10 +10,10 @@ interface OrbitalPickerProps {
   className?: string;
 }
 
-const ORBIT_RX = 320;
-const ORBIT_RY = 210;
-const SUN_RADIUS = 60;
-const EARTH_RADIUS = 30;
+const ORBIT_RX = 400;
+const ORBIT_RY = 260;
+const SUN_RADIUS = 75;
+const EARTH_RADIUS = 35;
 const VIEWBOX_WIDTH = (ORBIT_RX + EARTH_RADIUS) * 2 + 40;
 const VIEWBOX_HEIGHT = (ORBIT_RY + EARTH_RADIUS) * 2 + 40;
 
