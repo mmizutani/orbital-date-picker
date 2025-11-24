@@ -15,7 +15,7 @@ interface OrbitalPickerProps {
 const ORBIT_RX = 200;
 const ORBIT_RY = 120;
 const SUN_RADIUS = 30;
-const EARTH_RADIUS = 15;
+const EARTH_RADIUS = 45;
 const VIEWBOX_WIDTH = (ORBIT_RX + EARTH_RADIUS) * 2 + 40;
 const VIEWBOX_HEIGHT = (ORBIT_RY + EARTH_RADIUS) * 2 + 40;
 
@@ -193,7 +193,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
           rx={ORBIT_RX}
           ry={ORBIT_RY}
           stroke="hsl(var(--muted-foreground))"
-          strokeWidth="2.5"
+          strokeWidth="5"
           strokeDasharray="5 5"
           fill="none"
         />
