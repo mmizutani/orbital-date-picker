@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { getDayOfYear, getDaysInYear } from '@/lib/date-utils';
+import { getDayOfYear, getDaysInYear, getDateFromDayOfYear } from '@/lib/date-utils';
 
 interface OrbitalPickerProps {
   date: Date;
@@ -10,10 +10,10 @@ interface OrbitalPickerProps {
   className?: string;
 }
 
-const ORBIT_RX = 240;
-const ORBIT_RY = 150;
-const SUN_RADIUS = 40;
-const EARTH_RADIUS = 20;
+const ORBIT_RX = 320;
+const ORBIT_RY = 210;
+const SUN_RADIUS = 60;
+const EARTH_RADIUS = 30;
 const VIEWBOX_WIDTH = (ORBIT_RX + EARTH_RADIUS) * 2 + 40;
 const VIEWBOX_HEIGHT = (ORBIT_RY + EARTH_RADIUS) * 2 + 40;
 
@@ -21,14 +21,13 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   
-  const dragStartInfo = useRef<{ angle: number; time: number } | null>(null);
-  const accumulatedAngle = useRef(0);
+  const dragStartInfo = useRef<{ angle: number; time: number, startDayOfYear: number, startYear: number } | null>(null);
 
   const year = date.getFullYear();
   const daysInYear = getDaysInYear(year);
   const dayOfYear = getDayOfYear(date);
 
-  const angle = ((dayOfYear - 1) / daysInYear) * 360 + accumulatedAngle.current;
+  const angle = ((dayOfYear - 1) / daysInYear) * 360;
 
   const handleInteraction = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
     e.preventDefault();
@@ -56,15 +55,33 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     }
 
     let angleDiff = currentAngle - dragStartInfo.current.angle;
+    
+    // Normalize angle difference to handle wrapping around 360 degrees
+    if (angleDiff > 180) angleDiff -= 360;
+    if (angleDiff < -180) angleDiff += 360;
 
-    if (Math.abs(angleDiff) > 180) {
-      angleDiff += angleDiff > 0 ? -360 : 360;
+    const totalAngleDiff = (dragStartInfo.current.angle + angleDiff) - dragStartInfo.current.angle;
+    
+    const daysInStartYear = getDaysInYear(dragStartInfo.current.startYear);
+    const dayOffset = (angleDiff / 360) * daysInStartYear;
+    
+    const newDayOfYear = dragStartInfo.current.startDayOfYear + dayOffset;
+    
+    let newYear = dragStartInfo.current.startYear;
+    let finalDayOfYear = newDayOfYear;
+    
+    const daysInCurrentNewYear = getDaysInYear(newYear);
+
+    if (finalDayOfYear > daysInCurrentNewYear) {
+      finalDayOfYear -= daysInCurrentNewYear;
+      newYear++;
+    } else if (finalDayOfYear <= 0) {
+      const daysInPreviousYear = getDaysInYear(newYear - 1);
+      finalDayOfYear += daysInPreviousYear;
+      newYear--;
     }
 
-    const newTime = dragStartInfo.current.time + (angleDiff / 360) * getDaysInYear(new Date(dragStartInfo.current.time).getFullYear()) * 24 * 60 * 60 * 1000;
-    const newDate = new Date(newTime);
-    
-    dragStartInfo.current = { angle: currentAngle, time: newTime };
+    const newDate = getDateFromDayOfYear(Math.round(finalDayOfYear), newYear);
 
     if (newDate.getTime() !== date.getTime()) {
       onDateChange(newDate);
@@ -82,7 +99,8 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     let startAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
     if (startAngle < 0) startAngle += 360;
     
-    dragStartInfo.current = { angle: startAngle, time: date.getTime() };
+    const currentDayOfYear = getDayOfYear(date);
+    dragStartInfo.current = { angle: startAngle, time: date.getTime(), startDayOfYear: currentDayOfYear, startYear: date.getFullYear() };
   };
 
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -98,7 +116,12 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
   const stopDragging = () => {
     if (isDragging) {
       setIsDragging(false);
-      dragStartInfo.current = null;
+      
+      if(dragStartInfo.current) {
+        const currentDayOfYear = getDayOfYear(date);
+        dragStartInfo.current.startDayOfYear = currentDayOfYear;
+        dragStartInfo.current.startYear = date.getFullYear();
+      }
     }
   };
 
@@ -113,24 +136,27 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
   };
 
   useEffect(() => {
-    window.addEventListener('mouseup', stopDragging);
-    window.addEventListener('touchend', stopDragging);
-    window.addEventListener('touchcancel', stopDragging);
+    const handleMouseUp = () => stopDragging();
+    const handleTouchEnd = () => stopDragging();
+    
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
     
     const handleMouseLeave = (e: MouseEvent) => {
-        if (isDragging && e.relatedTarget === null) {
+        if (isDragging && !e.relatedTarget) {
             stopDragging();
         }
     };
     document.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
-      window.removeEventListener('mouseup', stopDragging);
-      window.removeEventListener('touchend', stopDragging);
-      window.removeEventListener('touchcancel', stopDragging);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
       document.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [isDragging]);
+  }, [isDragging, date]);
   
   const earthX = VIEWBOX_WIDTH / 2 + ORBIT_RX * Math.cos(angle * Math.PI / 180);
   const earthY = VIEWBOX_HEIGHT / 2 + ORBIT_RY * Math.sin(angle * Math.PI / 180);
@@ -140,7 +166,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-        className="w-full max-w-md"
+        className="w-full max-w-lg"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onTouchStart={handleTouchStart}
@@ -148,7 +174,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
       >
         <defs>
           <filter id="sun-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="10" result="coloredBlur" />
+            <feGaussianBlur stdDeviation="15" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
@@ -162,8 +188,8 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
           rx={ORBIT_RX}
           ry={ORBIT_RY}
           stroke="hsl(var(--muted-foreground))"
-          strokeWidth="1"
-          strokeDasharray="4 4"
+          strokeWidth="1.5"
+          strokeDasharray="5 5"
           fill="none"
         />
 
@@ -184,7 +210,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
             r={EARTH_RADIUS}
             fill="#6b93d6"
             stroke="#fff"
-            strokeWidth="1.5"
+            strokeWidth="2"
             className="transition-transform duration-75 ease-linear group-hover:scale-110"
           />
         </g>
