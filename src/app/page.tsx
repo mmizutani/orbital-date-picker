@@ -25,7 +25,7 @@ export default function Home() {
         <Card className="bg-card/50 backdrop-blur-sm border-border/20 shadow-2xl shadow-primary/5">
           <CardHeader className="items-center text-center pb-2">
             <CardTitle className="text-3xl font-headline tracking-tight text-foreground">
-              Orbital Date Picker
+              Select your date of birth
             </CardTitle>
             <CardDescription className="text-base">Drag the Earth to select a date.</CardDescription>
           </CardHeader>
