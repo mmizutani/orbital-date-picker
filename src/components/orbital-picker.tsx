@@ -20,6 +20,8 @@ const VIEWBOX_HEIGHT = (ORBIT_RY + EARTH_RADIUS) * 2 + 40;
 export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const dragStartAngle = useRef<number | null>(null);
+  const dragStartDate = useRef<Date | null>(null);
 
   const year = date.getFullYear();
   const daysInYear = useMemo(() => getDaysInYear(year), [year]);
@@ -29,7 +31,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
 
   const handleInteraction = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
     e.preventDefault();
-    if (!svgRef.current) return;
+    if (!svgRef.current || dragStartAngle.current === null || !dragStartDate.current) return;
 
     const rect = svgRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -47,15 +49,29 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     const deltaX = clientX - centerX;
     const deltaY = clientY - centerY;
 
-    let newAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-    if (newAngle < 0) {
-      newAngle += 360;
+    let currentAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+    if (currentAngle < 0) {
+      currentAngle += 360;
     }
 
-    const newDayOfYear = Math.floor((newAngle / 360) * daysInYear) + 1;
-    const clampedDay = Math.max(1, Math.min(newDayOfYear, daysInYear));
+    let angleDiff = currentAngle - dragStartAngle.current;
+    
+    // Check for crossover (e.g., from 359 to 1 degree)
+    if (Math.abs(angleDiff) > 180) {
+      if (angleDiff > 0) {
+        angleDiff -= 360;
+      } else {
+        angleDiff += 360;
+      }
+    }
+    dragStartAngle.current = currentAngle;
 
-    const newDate = getDateFromDayOfYear(clampedDay, year);
+    const daysDiff = (angleDiff / 360) * getDaysInYear(dragStartDate.current.getFullYear());
+    const newDate = new Date(dragStartDate.current.getTime());
+    newDate.setDate(newDate.getDate() + daysDiff);
+
+    dragStartDate.current = newDate;
+
     if (newDate.getTime() !== date.getTime()) {
       onDateChange(newDate);
     }
@@ -63,7 +79,16 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
   
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     setIsDragging(true);
-    handleInteraction(e);
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const deltaX = e.clientX - centerX;
+    const deltaY = e.clientY - centerY;
+    let startAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+    if (startAngle < 0) startAngle += 360;
+    dragStartAngle.current = startAngle;
+    dragStartDate.current = new Date(date);
   };
   
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -74,11 +99,22 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    dragStartAngle.current = null;
+    dragStartDate.current = null;
   };
 
   const handleTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
     setIsDragging(true);
-    handleInteraction(e);
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const deltaX = e.touches[0].clientX - centerX;
+    const deltaY = e.touches[0].clientY - centerY;
+    let startAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+    if (startAngle < 0) startAngle += 360;
+    dragStartAngle.current = startAngle;
+    dragStartDate.current = new Date(date);
   };
 
   const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
@@ -89,17 +125,23 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    dragStartAngle.current = null;
+    dragStartDate.current = null;
   };
 
   useEffect(() => {
-    const endDrag = () => setIsDragging(false);
+    const endDrag = () => {
+        if (isDragging) {
+            handleMouseUp();
+        }
+    };
     window.addEventListener('mouseup', endDrag);
     window.addEventListener('touchend', endDrag);
     return () => {
       window.removeEventListener('mouseup', endDrag);
       window.removeEventListener('touchend', endDrag);
     };
-  }, []);
+  }, [isDragging]);
   
   const earthX = VIEWBOX_WIDTH / 2 + ORBIT_RX * Math.cos(angle * Math.PI / 180);
   const earthY = VIEWBOX_HEIGHT / 2 + ORBIT_RY * Math.sin(angle * Math.PI / 180);
