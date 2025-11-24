@@ -27,13 +27,13 @@ export default function Home() {
             <CardTitle className="text-3xl font-headline tracking-tight text-foreground">
               Orbital Date Picker
             </CardTitle>
-            <CardDescription>Drag the Earth to select a date.</CardDescription>
+            <CardDescription className="text-base">Drag the Earth to select a date.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-8">
             <OrbitalPicker date={selectedDate} onDateChange={setSelectedDate} />
             <div className="text-center">
               <p className="text-lg text-muted-foreground">Selected Date</p>
-              <p className="text-4xl font-bold text-foreground tabular-nums tracking-tight">
+              <p className="text-3xl font-bold text-foreground tabular-nums tracking-tight">
                 {format(selectedDate, 'MMMM d, yyyy')}
               </p>
             </div>
