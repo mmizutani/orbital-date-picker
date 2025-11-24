@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { getDayOfYear, getDaysInYear, getDateFromDayOfYear } from '@/lib/date-utils';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import earthImageAsset from './earth.png';
 
 interface OrbitalPickerProps {
   date: Date;
@@ -22,7 +22,7 @@ const VIEWBOX_HEIGHT = (ORBIT_RY + EARTH_RADIUS) * 2 + 40;
 export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  
+
   const dragStartInfo = useRef<{ angle: number; startDayOfYear: number; startYear: number; totalAngle: number } | null>(null);
 
   const year = date.getFullYear();
@@ -50,7 +50,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
 
     const deltaX = clientX - centerX;
     const deltaY = clientY - centerY;
-    
+
     let currentAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
     if (currentAngle < 0) {
       currentAngle += 360;
@@ -59,7 +59,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     if (!dragStartInfo.current) return;
 
     let angleDiff = currentAngle - dragStartInfo.current.angle;
-    
+
     if (angleDiff > 180) angleDiff -= 360;
     if (angleDiff < -180) angleDiff += 360;
 
@@ -69,11 +69,11 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
 
     const daysInStartYear = getDaysInYear(dragStartInfo.current.startYear);
     const dayOffset = (newTotalAngle / 360) * daysInStartYear;
-    
+
     let newDayOfYear = dragStartInfo.current.startDayOfYear + dayOffset;
-    
+
     let newYear = dragStartInfo.current.startYear;
-    
+
     while (newDayOfYear > getDaysInYear(newYear)) {
       newDayOfYear -= getDaysInYear(newYear);
       newYear++;
@@ -82,14 +82,14 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
       newYear--;
       newDayOfYear += getDaysInYear(newYear);
     }
-    
+
     const newDate = getDateFromDayOfYear(Math.round(newDayOfYear), newYear);
 
     if (newDate.getTime() !== date.getTime()) {
       onDateChange(newDate);
     }
   };
-  
+
   const startDragging = (clientX: number, clientY: number) => {
     setIsDragging(true);
     if (!svgRef.current) return;
@@ -100,11 +100,11 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     const deltaY = clientY - centerY;
     let startAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
     if (startAngle < 0) startAngle += 360;
-    
+
     const currentDayOfYear = getDayOfYear(date);
 
-    dragStartInfo.current = { 
-      angle: startAngle, 
+    dragStartInfo.current = {
+      angle: startAngle,
       startDayOfYear: currentDayOfYear,
       startYear: date.getFullYear(),
       totalAngle: 0,
@@ -114,7 +114,7 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     startDragging(e.clientX, e.clientY);
   };
-  
+
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isDragging) {
       handleInteraction(e);
@@ -141,11 +141,11 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
   useEffect(() => {
     const handleMouseUp = () => stopDragging();
     const handleTouchEnd = () => stopDragging();
-    
+
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('touchend', handleTouchEnd);
     window.addEventListener('touchcancel', handleTouchEnd);
-    
+
     const handleMouseLeave = (e: MouseEvent) => {
         if (isDragging && !e.relatedTarget) {
             stopDragging();
@@ -160,11 +160,11 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
       document.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [isDragging]);
-  
+
   const earthX = VIEWBOX_WIDTH / 2 + ORBIT_RX * Math.cos(angle * Math.PI / 180);
   const earthY = VIEWBOX_HEIGHT / 2 + ORBIT_RY * Math.sin(angle * Math.PI / 180);
-  
-  const earthImage = PlaceHolderImages.find(img => img.id === 'earth');
+
+  const earthImageHref = earthImageAsset.src;
 
   return (
     <div className={cn('flex justify-center items-center', isDragging ? 'cursor-grabbing' : 'cursor-grab', className)}>
@@ -211,9 +211,9 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
             r={EARTH_RADIUS * 1.5}
             fill="transparent"
           />
-          {earthImage && (
-             <image
-              href={earthImage.imageUrl}
+          {earthImageHref && (
+            <image
+              href={earthImageHref}
               x={-EARTH_RADIUS}
               y={-EARTH_RADIUS}
               height={EARTH_RADIUS * 2}
