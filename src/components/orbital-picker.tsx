@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { getDayOfYear, getDateFromDayOfYear, getDaysInYear } from '@/lib/date-utils';
+import { getDayOfYear, getDaysInYear } from '@/lib/date-utils';
 
 interface OrbitalPickerProps {
   date: Date;
@@ -12,26 +12,27 @@ interface OrbitalPickerProps {
 
 const ORBIT_RX = 200;
 const ORBIT_RY = 120;
-const SUN_RADIUS = 20;
-const EARTH_RADIUS = 10;
+const SUN_RADIUS = 30;
+const EARTH_RADIUS = 15;
 const VIEWBOX_WIDTH = (ORBIT_RX + EARTH_RADIUS) * 2 + 40;
 const VIEWBOX_HEIGHT = (ORBIT_RY + EARTH_RADIUS) * 2 + 40;
 
 export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const dragStartAngle = useRef<number | null>(null);
-  const dragStartDate = useRef<Date | null>(null);
+  
+  const dragStartInfo = useRef<{ angle: number; time: number } | null>(null);
+  const accumulatedAngle = useRef(0);
 
   const year = date.getFullYear();
-  const daysInYear = useMemo(() => getDaysInYear(year), [year]);
-
+  const daysInYear = getDaysInYear(year);
   const dayOfYear = getDayOfYear(date);
-  const angle = ((dayOfYear - 1) / daysInYear) * 360;
+
+  const angle = ((dayOfYear - 1) / daysInYear) * 360 + accumulatedAngle.current;
 
   const handleInteraction = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
     e.preventDefault();
-    if (!svgRef.current || dragStartAngle.current === null || !dragStartDate.current) return;
+    if (!svgRef.current || !dragStartInfo.current) return;
 
     const rect = svgRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
@@ -48,47 +49,44 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
 
     const deltaX = clientX - centerX;
     const deltaY = clientY - centerY;
-
+    
     let currentAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
     if (currentAngle < 0) {
       currentAngle += 360;
     }
 
-    let angleDiff = currentAngle - dragStartAngle.current;
-    
-    // Check for crossover (e.g., from 359 to 1 degree)
+    let angleDiff = currentAngle - dragStartInfo.current.angle;
+
     if (Math.abs(angleDiff) > 180) {
-      if (angleDiff > 0) {
-        angleDiff -= 360;
-      } else {
-        angleDiff += 360;
-      }
+      angleDiff += angleDiff > 0 ? -360 : 360;
     }
-    dragStartAngle.current = currentAngle;
 
-    const daysDiff = (angleDiff / 360) * getDaysInYear(dragStartDate.current.getFullYear());
-    const newDate = new Date(dragStartDate.current.getTime());
-    newDate.setDate(newDate.getDate() + daysDiff);
-
-    dragStartDate.current = newDate;
+    const newTime = dragStartInfo.current.time + (angleDiff / 360) * getDaysInYear(new Date(dragStartInfo.current.time).getFullYear()) * 24 * 60 * 60 * 1000;
+    const newDate = new Date(newTime);
+    
+    dragStartInfo.current = { angle: currentAngle, time: newTime };
 
     if (newDate.getTime() !== date.getTime()) {
       onDateChange(newDate);
     }
   };
   
-  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+  const startDragging = (clientX: number, clientY: number) => {
     setIsDragging(true);
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    const deltaX = e.clientX - centerX;
-    const deltaY = e.clientY - centerY;
+    const deltaX = clientX - centerX;
+    const deltaY = clientY - centerY;
     let startAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
     if (startAngle < 0) startAngle += 360;
-    dragStartAngle.current = startAngle;
-    dragStartDate.current = new Date(date);
+    
+    dragStartInfo.current = { angle: startAngle, time: date.getTime() };
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    startDragging(e.clientX, e.clientY);
   };
   
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -97,24 +95,15 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     }
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    dragStartAngle.current = null;
-    dragStartDate.current = null;
+  const stopDragging = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      dragStartInfo.current = null;
+    }
   };
 
   const handleTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
-    setIsDragging(true);
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    const deltaX = e.touches[0].clientX - centerX;
-    const deltaY = e.touches[0].clientY - centerY;
-    let startAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-    if (startAngle < 0) startAngle += 360;
-    dragStartAngle.current = startAngle;
-    dragStartDate.current = new Date(date);
+    startDragging(e.touches[0].clientX, e.touches[0].clientY);
   };
 
   const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
@@ -123,23 +112,23 @@ export function OrbitalPicker({ date, onDateChange, className }: OrbitalPickerPr
     }
   };
 
-  const handleTouchEnd = () => {
-    setIsDragging(false);
-    dragStartAngle.current = null;
-    dragStartDate.current = null;
-  };
-
   useEffect(() => {
-    const endDrag = () => {
-        if (isDragging) {
-            handleMouseUp();
+    window.addEventListener('mouseup', stopDragging);
+    window.addEventListener('touchend', stopDragging);
+    window.addEventListener('touchcancel', stopDragging);
+    
+    const handleMouseLeave = (e: MouseEvent) => {
+        if (isDragging && e.relatedTarget === null) {
+            stopDragging();
         }
     };
-    window.addEventListener('mouseup', endDrag);
-    window.addEventListener('touchend', endDrag);
+    document.addEventListener('mouseleave', handleMouseLeave);
+
     return () => {
-      window.removeEventListener('mouseup', endDrag);
-      window.removeEventListener('touchend', endDrag);
+      window.removeEventListener('mouseup', stopDragging);
+      window.removeEventListener('touchend', stopDragging);
+      window.removeEventListener('touchcancel', stopDragging);
+      document.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [isDragging]);
   
